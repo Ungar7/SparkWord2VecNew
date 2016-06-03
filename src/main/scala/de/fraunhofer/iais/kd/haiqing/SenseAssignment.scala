@@ -1,6 +1,7 @@
 package de.fraunhofer.iais.kd.haiqing
 
 import java.io._
+import java.nio.file.{Files, Paths, Path}
 import java.util.Calendar
 
 import com.github.fommil.netlib.BLAS.{getInstance => blas}
@@ -241,10 +242,17 @@ class SenseAssignment(val inputFile: String,
     println("numSentences of input file " + numSentenceInput)
     val rand = new util.Random(seed)
 
-    learnVocab(input)
+    val valiRatio = math.min(validationRatio, maxValidationSize * 1.0f / numSentenceInput)
+    val splittedData = input.randomSplit(Array[Double](1 - valiRatio, valiRatio), rand.nextLong())
+
+    learnVocab(splittedData(0))
+    //learnVocab(input)
 
     val (vocabSize, numberOfSensesPerWord) = createNumberOfSensePerWord(rand)
     mc.setDictInfo(vocabSize, numberOfSensesPerWord, this.createMultinomFreqDistr())
+
+    trainingSet = makeSentences(splittedData(0), rand)
+    validationSet = makeSentencesWithNEG(splittedData(1), rand).cache()
 
     if (mc.oneSense) {
       if (readParamsFromFile)
@@ -258,19 +266,21 @@ class SenseAssignment(val inputFile: String,
         initSynFromFile(mc.modelPathOneSense, rand, mc.senseInitStandardDev) // init embeddings with stored embedding
     }
 
-    // wih 1 sense
-    val valiRatio = math.min(validationRatio, maxValidationSize * 1.0f / numSentenceInput)
-    println(nSense + " validationIsSubset=" + validationIsSubset + " numSentenceInput=" + numSentenceInput
-      + " validationRatio=" + validationRatio + " maxValidationSize=" + maxValidationSize)
-    if (validationIsSubset) {
-      //validationset as subset of trainingset
-      trainingSet = makeSentences(input, rand)
-      validationSet = makeSentencesWithNEG(input.sample(false, valiRatio, 1357), rand).cache()
-    } else {
-      val splittedData = input.randomSplit(Array[Double](1 - valiRatio, valiRatio), rand.nextLong())
-      trainingSet = makeSentences(splittedData(0), rand)
-      validationSet = makeSentencesWithNEG(splittedData(1), rand).cache()
-    }
+//    // wih 1 sense
+//    val valiRatio = math.min(validationRatio, maxValidationSize * 1.0f / numSentenceInput)
+//    println(nSense + " validationIsSubset=" + validationIsSubset + " numSentenceInput=" + numSentenceInput
+//      + " validationRatio=" + validationRatio + " maxValidationSize=" + maxValidationSize)
+//    if (validationIsSubset) {
+//      //validationset as subset of trainingset
+//      trainingSet = makeSentences(input, rand)
+//      validationSet = makeSentencesWithNEG(input.sample(false, valiRatio, 1357), rand).cache()
+//    } else {
+//      val splittedData = input.randomSplit(Array[Double](1 - valiRatio, valiRatio), rand.nextLong())
+//      trainingSet = makeSentences(splittedData(0), rand)
+//      validationSet = makeSentencesWithNEG(splittedData(1), rand).cache()
+//    }
+
+
     println(nSense + " created   training set with " + trainingSet.count().toInt + " lines")
     println(nSense + " created validation set with " + validationSet.count().toInt + " lines\n")
 
@@ -664,10 +674,15 @@ class SenseAssignment(val inputFile: String,
         senseProbs(w)(s) = 1.0f / mc.numberOfSensesPerWord(w) // init as uniform probability
     }
 
+    val str = if (mc.oneSense) mc.modelPathOneSense else mc.modelPathMultiSense
+    val outputPath = str+"/"+Calendar.getInstance().getTime.toString.filter(x=>(x!=' ')).substring(3,8)+"-Para:"+numRDDs+","+numEpoch+","+minCount+","+mc.numNegative+","+mc.window+","+mc.vectorSize+","+freqThreshStr+","+mc.learningRate+","+mc.stepSize+","+local+","+trainingSet.getNumPartitions
+    val folderPath: Path = Paths.get(outputPath)
+    if (!Files.exists(folderPath))
+      Files.createDirectory(folderPath)
+
     //val file = new PrintWriter(new File("./tmp.txt"))
     // ModelConst contains all constant structures of the model
-    val historyFileName: String = if (mc.oneSense) mc.modelPathOneSense + "/history.txt"
-    else mc.modelPathMultiSense + "/history.txt"
+    val historyFileName: String = outputPath + "/history.txt"
 
     val historyWriter = new PrintWriter(new File(historyFileName))
     val histHeader = Array("it", "valiLossPerPredict", "valiNumAdjustPerSentence")
@@ -696,66 +711,6 @@ class SenseAssignment(val inputFile: String,
 
       //println("validationSet.count()=" + validationSet.count())
 
-      //adjust sense assignment and calculate loss for validation set
-      //println("iteration = " + it + "   indexRDD = " + indexRDD + " adjust sense assignment and calculate loss for " +
-      //  "validation set...")
-      if (it == numIterations || it % mc.modelValidateIter == 0) {
-        /*----------------------------------------------------------------------- */
-        /*            adjust senses of validation set and compute loss            */
-        /*----------------------------------------------------------------------- */
-        val scVali = validationSet.context
-        val mcBc = scVali.broadcast(mc)
-        val lossValiAcc = scVali.accumulator(0.0)
-        val lossNumValiAcc = scVali.accumulator(0)
-        val numAdjustValiAcc = scVali.accumulator(0l)
-        val syn0Bc = scVali.broadcast(syn0)
-        val syn1Bc = scVali.broadcast(syn1)
-
-        validationSet = validationSet.mapPartitionsWithIndex { (idx, iterator) =>
-          // always the same seeds for a partition
-        val F = new ModelUpdater(mcBc.value, 578829 + idx, syn0Bc.value, syn1Bc.value)
-
-          //          val F = new ModelConst(window, vectorSize, maxNumSenses, numNegative, vocabSize, learningRate,null, null,
-          //            expTable, numberOfSensesPerWord, smoothedFrequencyLookupTable, syn0, syn1)
-          val newIter = mutable.MutableList[(Array[Int], Array[Array[Int]])]()
-          var lossVali = 0.0
-          var lossNumVali = 0
-          var numAdjust = 0
-          for ((sentence, sentenceNEG) <- iterator) {
-            if (!F.m.oneSense) {
-              var nadj = 0
-              while (!F.m.oneSense && nadj < F.m.maxAdjusting) {
-                val adjusted = F.adjustSentence(sentence, sentenceNEG) // change the word-senses of sent
-                if (adjusted) {
-                  nadj += 1
-                  numAdjust += 1
-                } else
-                  nadj = F.m.maxAdjusting
-              }
-            }
-            val (sentLoss, sentLossNum) = F.sentenceLoss(sentence, sentenceNEG)
-            lossVali += sentLoss
-            lossNumVali += sentLossNum
-            newIter += sentence -> sentenceNEG
-          }
-          lossValiAcc += lossVali
-          lossNumValiAcc += lossNumVali;
-          numAdjustValiAcc += numAdjust
-          newIter.toIterator
-        }.cache()
-        val sentenceNumValidation = validationSet.count()
-        val valiLossPerPredict = lossValiAcc.value / lossNumValiAcc.value
-        val valiNumAdjustPerSentence = numAdjustValiAcc.value * 1.0 / sentenceNumValidation
-        var st = stIter + "VALISET: lossPerPredict\t=" + Ut.pp(valiLossPerPredict, "%10.6f")
-        st += " numPredict=" + lossNumValiAcc.value
-        if (!mc.oneSense) st += " numAdjustPerSentence=" + Ut.pp(valiNumAdjustPerSentence, "%10.6f")
-        if (mc.printLv > 0)
-          println("--------------------------------------------------------------------------------------------------")
-        println(st)
-        hist(histPos("valiLossPerPredict")) = valiLossPerPredict
-        hist(histPos("valiNumAdjustPerSentence")) = valiNumAdjustPerSentence
-      }
-
       if (!mc.oneSense) {
         /*----------------------------------------------------------------------- */
         /*            adjust senses of training set RDD                           */
@@ -764,7 +719,7 @@ class SenseAssignment(val inputFile: String,
         val mcBc = scTrn1.broadcast(mc)
         val syn0Bc = scTrn1.broadcast(syn0)
         val syn1Bc = scTrn1.broadcast(syn1)
-        val senseCountAcc = scTrn1.accumulator(initSenseCounts(mc.numberOfSensesPerWord))(CountArrAccumulatorParam)
+        val senseCountAcc = scTrn1.accumulator(mc.initSenseCounts(mc.numberOfSensesPerWord))(CountArrAccumulatorParam)
         var numAdjustTrainAcc = scTrn1.accumulator(0)
         val modelConst1Bc = scTrn1.broadcast(mc)
         var numPartitions = trainSet(indexRDD).partitions.size
@@ -773,7 +728,7 @@ class SenseAssignment(val inputFile: String,
         trainSet(indexRDD) = trainSet(indexRDD).mapPartitionsWithIndex { (idx, iter) =>
           val F = new ModelUpdater(modelConst1Bc.value, seedTrainAdjustBc.value + idx, syn0Bc.value, syn1Bc
             .value)
-          val senseCount = initSenseCounts(F.m.numberOfSensesPerWord)
+          val senseCount = F.m.initSenseCounts(F.m.numberOfSensesPerWord)
           // init senseCount
           val newIter = mutable.MutableList[Array[Int]]()
           for (sentence <- iter) {
@@ -960,16 +915,88 @@ class SenseAssignment(val inputFile: String,
         totalWordCount += wordCountTrainAcc.value
 
       }
+
+
+      //adjust sense assignment and calculate loss for validation set
+      //println("iteration = " + it + "   indexRDD = " + indexRDD + " adjust sense assignment and calculate loss for " +
+      //  "validation set...")
+      if (it+1 == numIterations || it % mc.modelValidateIter == 0) {
+        /*----------------------------------------------------------------------- */
+        /*            adjust senses of validation set and compute loss            */
+        /*----------------------------------------------------------------------- */
+        val scVali = validationSet.context
+        val mcBc = scVali.broadcast(mc)
+        val lossValiAcc = scVali.accumulator(0.0)
+        val lossNumValiAcc = scVali.accumulator(0)
+        val numAdjustValiAcc = scVali.accumulator(0l)
+        val syn0Bc = scVali.broadcast(syn0)
+        val syn1Bc = scVali.broadcast(syn1)
+
+        validationSet = validationSet.mapPartitionsWithIndex { (idx, iterator) =>
+          // always the same seeds for a partition
+          val F = new ModelUpdater(mcBc.value, 578829 + idx, syn0Bc.value, syn1Bc.value)
+
+          //          val F = new ModelConst(window, vectorSize, maxNumSenses, numNegative, vocabSize, learningRate,null, null,
+          //            expTable, numberOfSensesPerWord, smoothedFrequencyLookupTable, syn0, syn1)
+          val newIter = mutable.MutableList[(Array[Int], Array[Array[Int]])]()
+          var lossVali = 0.0
+          var lossNumVali = 0
+          var numAdjust = 0
+          for ((sentence, sentenceNEG) <- iterator) {
+            if (!F.m.oneSense) {
+              var nadj = 0
+              while (!F.m.oneSense && nadj < F.m.maxAdjusting) {
+                val adjusted = F.adjustSentence(sentence, sentenceNEG) // change the word-senses of sent
+                if (adjusted) {
+                  nadj += 1
+                  numAdjust += 1
+                } else
+                  nadj = F.m.maxAdjusting
+              }
+            }
+            val (sentLoss, sentLossNum) = F.sentenceLoss(sentence, sentenceNEG)
+            lossVali += sentLoss
+            lossNumVali += sentLossNum
+            newIter += sentence -> sentenceNEG
+          }
+          lossValiAcc += lossVali
+          lossNumValiAcc += lossNumVali;
+          numAdjustValiAcc += numAdjust
+          newIter.toIterator
+        }.cache()
+        val sentenceNumValidation = validationSet.count()
+        val valiLossPerPredict = lossValiAcc.value / lossNumValiAcc.value
+        val valiNumAdjustPerSentence = numAdjustValiAcc.value * 1.0 / sentenceNumValidation
+        var st = stIter + "VALISET: lossPerPredict\t=" + Ut.pp(valiLossPerPredict, "%10.6f")
+        st += " numPredict=" + lossNumValiAcc.value
+        if (!mc.oneSense) st += " numAdjustPerSentence=" + Ut.pp(valiNumAdjustPerSentence, "%10.6f")
+        if (mc.printLv > 0)
+          println("--------------------------------------------------------------------------------------------------")
+        println(st)
+        hist(histPos("valiLossPerPredict")) = valiLossPerPredict
+        hist(histPos("valiNumAdjustPerSentence")) = valiNumAdjustPerSentence
+      }
+
+
+
       //println()
       //println("syn0(0)(0)(0)=" + syn0(0)(0)(0))
       //println("syn0Modify(0)(0)=" + syn0Modify(0)(0))
       //println("syn0Modify(0)(0)=" + syn0Modify(0)(0))
-      if (it == numIterations || it > 0 && it % mc.modelSaveIter == 0) {
+      if (it+1 == numIterations || it > 0 && it % mc.modelSaveIter == 0) {
         println(stIter + "saving model ...")
-        if (mc.oneSense)
-          writeToFile(mc.modelPathOneSense)
-        else
-          writeToFile(mc.modelPathMultiSense)
+        if (it+1 == numIterations) {
+          if (mc.oneSense)
+            writeToFile(outputPath, -1)
+          else
+            writeToFile(outputPath, -1)
+        }
+        else {
+          if (mc.oneSense)
+            writeToFile(outputPath, it)
+          else
+            writeToFile(outputPath, it)
+        }
       }
       historyWriter.write(hist.mkString(" ") + "\n")
       historyWriter.flush()
@@ -977,22 +1004,22 @@ class SenseAssignment(val inputFile: String,
     historyWriter.close()
   }
 
-  def initSenseCounts(numberOfSensesPerWord: Array[Int]): Array[Array[Int]] = {
-    val senseCount = new Array[Array[Int]](numberOfSensesPerWord.length) // an array of Int for the senses of each word
-    for (w <- 0 until numberOfSensesPerWord.length) {
-      senseCount(w) = new Array[Int](numberOfSensesPerWord(w)) // length of array = number of senses
-    }
-    senseCount
-  }
-
   /**
     * write to file
     * wordIndex.txt : wordString_senNo
     * vectors.txt:
     *
-    * @param outputPath
+    * @param outputPathFather
     */
-  private def writeToFile(outputPath: String): Unit = {
+  private def writeToFile(outputPathFather: String, iter: Int): Unit = {
+    var outputPath = outputPathFather
+    if (iter >= 0) {
+      outputPath = outputPathFather + "/" + "iter" + iter
+      val folderPath: Path = Paths.get(outputPath)
+      if (!Files.exists(folderPath))
+        Files.createDirectory(folderPath)
+    }
+
     SenseAssignment.backupFile(outputPath + "/wordIndex.txt")
     SenseAssignment.backupFile(outputPath + "/vectors.txt")
 
@@ -1010,17 +1037,17 @@ class SenseAssignment(val inputFile: String,
     writeSyn(syn0, outputPath + "/syn0.txt")
     writeSyn(syn1, outputPath + "/syn1.txt")
 
-    //    wordStringSyn0File.write(mc.vocabSize + " " + mc.vectorSize + "\n")
-    //    for ((wordString, iword) <- wordIndex) {
-    //      wordStringSyn0File.write(wordString)
-    //      for (sense <- 0 until mc.numberOfSensesPerWord(iword)) {
-    //        //println(wordString + "_" + sense + " " + word)
-    //        for (i <- 0 until mc.vectorSize )
-    //          wordStringSyn0File.write(" " + syn0(iword)(sense)(i))
-    //        wordStringSyn0File.write("\n")
-    //      }
-    //    }
-    //    wordStringSyn0File.close()
+        wordStringSyn0File.write(mc.vocabSize + " " + mc.vectorSize + "\n")
+        for ((wordString, iword) <- wordIndex) {
+          wordStringSyn0File.write(wordString)
+          for (sense <- 0 until mc.numberOfSensesPerWord(iword)) {
+            //println(wordString + "_" + sense + " " + word)
+            for (i <- 0 until mc.vectorSize )
+              wordStringSyn0File.write(" " + syn0(iword)(sense)(i))
+            wordStringSyn0File.write("\n")
+          }
+        }
+        wordStringSyn0File.close()
   }
 
   def writeSyn(syn: Array[Array[Array[Float]]], synFileName: String) {
@@ -1194,7 +1221,7 @@ class SenseAssignment(val inputFile: String,
 
     val syn0Old = mc.synClone(syn0)
     val syn1Old = mc.synClone(syn1)
-    writeToFile(folder.getCanonicalPath)
+    writeToFile(folder.getCanonicalPath,-1)
 
     initSynFromFile(folder.getCanonicalPath, rnd)
 

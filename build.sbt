@@ -1,9 +1,9 @@
 import _root_.sbtassembly.AssemblyPlugin.autoImport._
 import _root_.sbtassembly.PathList
 
-mainClass in assembly := Some("de.fraunhofer.iais.kd.annSeq.ContrastSenseModelRunnerCluster")
+mainClass in assembly := Some("de.fraunhofer.iais.kd.haiqing.Main_sense")
 
-assemblyJarName in assembly := "annSeq_v2.jar" // name of generated jar
+assemblyJarName in assembly := "SparkWord2Vec.jar" // name of generated jar
 
 assemblyOption in assembly := (assemblyOption in assembly).value.copy(includeScala = false)
 
@@ -25,7 +25,7 @@ name := "SparkWord2vec"
 
 version := "1.0"
 
-scalaVersion := "2.11.6"
+scalaVersion := "2.11.7"
 
 organization := "Fraunhofer IAIS"
 

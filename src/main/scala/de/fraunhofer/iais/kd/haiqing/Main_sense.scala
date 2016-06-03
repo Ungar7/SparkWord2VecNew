@@ -51,10 +51,10 @@ object Main_sense {
     val modelValidateIter = 5 //  validate the model after this number of iterations
     val validationRatio = 0.1f // maximum fraction of data to use for validation
     val maxValidationSize: Int = 20000 // maximum number of sentences for validation
-    val validationIsSubset = true // select validationset as subset of trainingssets
+    val validationIsSubset = false // select validationset as subset of trainingssets
     val maxEmbNorm = 15.0f
     val senseProbThresh = 0.02f // re-initialize embedding if senseProbability is lower
-    val printLv=0 // level for training output
+    val printLv=3 // level for training output
     val weightDecay = 0.1f
     val syn1OneSense:Boolean = true // syn1 has only one sense
 
