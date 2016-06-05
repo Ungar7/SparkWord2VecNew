@@ -985,18 +985,10 @@ class SenseAssignment(val inputFile: String,
       //println("syn0Modify(0)(0)=" + syn0Modify(0)(0))
       if (it+1 == numIterations || it > 0 && it % mc.modelSaveIter == 0) {
         println(stIter + "saving model ...")
-        if (it+1 == numIterations) {
           if (mc.oneSense)
-            writeToFile(outputPath, -1)
+            writeToFile(outputPath)
           else
-            writeToFile(outputPath, -1)
-        }
-        else {
-          if (mc.oneSense)
-            writeToFile(outputPath, it)
-          else
-            writeToFile(outputPath, it)
-        }
+            writeToFile(outputPath)
       }
       historyWriter.write(hist.mkString(" ") + "\n")
       historyWriter.flush()
@@ -1009,17 +1001,9 @@ class SenseAssignment(val inputFile: String,
     * wordIndex.txt : wordString_senNo
     * vectors.txt:
     *
-    * @param outputPathFather
+    * @param outputPath
     */
-  private def writeToFile(outputPathFather: String, iter: Int): Unit = {
-    var outputPath = outputPathFather
-    if (iter >= 0) {
-      outputPath = outputPathFather + "/" + "iter" + iter
-      val folderPath: Path = Paths.get(outputPath)
-      if (!Files.exists(folderPath))
-        Files.createDirectory(folderPath)
-    }
-
+  private def writeToFile(outputPath: String): Unit = {
     SenseAssignment.backupFile(outputPath + "/wordIndex.txt")
     SenseAssignment.backupFile(outputPath + "/vectors.txt")
 
@@ -1221,7 +1205,7 @@ class SenseAssignment(val inputFile: String,
 
     val syn0Old = mc.synClone(syn0)
     val syn1Old = mc.synClone(syn1)
-    writeToFile(folder.getCanonicalPath,-1)
+    writeToFile(folder.getCanonicalPath)
 
     initSynFromFile(folder.getCanonicalPath, rnd)
 
