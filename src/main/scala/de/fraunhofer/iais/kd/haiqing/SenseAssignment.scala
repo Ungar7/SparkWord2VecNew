@@ -658,6 +658,8 @@ class SenseAssignment(val inputFile: String,
   }
 
   private def train(): Unit = {
+
+
     require(syn0 != null, "syn0 should not be null. You may need to check if initializing parameters correctly.")
     require(syn1 != null, "syn1 should not be null. You may need to check if initializing parameters correctly.")
     require(syn0.length == syn1.length, "NOT syn0.length==syn1.length")
@@ -836,7 +838,12 @@ class SenseAssignment(val inputFile: String,
           //println("idx="+idx+" synIter.length="+synIter.length)
           synIter.toIterator
         }.cache()
+
+        val time1 = currentTime
         val nn = synRDD.count()
+        println("count time="+(currentTime-time1)/1000.0)
+
+
         currentLearnRate = mc.learningRate * (1 - (totalWordCount * 1.0) / totalTrainWords)
         if (currentLearnRate < mc.learningRate * 0.0001f) currentLearnRate = mc.learningRate * 0.0001f
         if (mc.printLv > 1) {
@@ -851,99 +858,36 @@ class SenseAssignment(val inputFile: String,
         /*----------------------------------------------------------------------- */
         /*            aggregate the results from different partitions             */
         /*----------------------------------------------------------------------- */
+        val time2 = currentTime
+        val (syn0Avg, syn1Avg): (Array[Float], Array[Float]) =
+          synRDD.treeAggregate(new Array[Float](0), new Array[Float](0))(
+            // aggregate within RDD. c: aggregator, v: RDD-element
+            seqOp = (c: (Array[Float], Array[Float]), v: (Int, Array[Float])) => {
+              //println("treeagg seqOp: id=" + v._1 + " length=" + v._2.length)
+              v._1 match {
+                case 0 =>
+                  require(c._1.length == 0, "NOT c._1.length==0")
+                  (v._2, c._2)
+                case 1 =>
+                  require(c._2.length == 0, "NOT c._2.length==0")
+                  (c._1, v._2)
+              }
+            },
+            // aggregate between RDDs
+            combOp = (c1: (Array[Float], Array[Float]), c2: (Array[Float], Array[Float])) => {
+              //println("treeagg combOp: numParam=" + c1._1.length)
+              require(c1._1.length == c2._1.length, "NOT c1._1.length==c2._1.length")
+              require(c1._2.length == c2._2.length, "NOT c1._2.length==c2._2.length")
+              val sm0 = new Array[Float](c1._1.length)
+              for (i <- 0 until c1._1.length) // add 2 arrays
+                sm0(i) = c1._1(i) + c2._1(i)
+              val sm1 = new Array[Float](c1._1.length)
+              for (i <- 0 until c1._2.length) // add 2 arrays
+                sm1(i) = c1._2(i) + c2._2(i)
+              (sm0, sm1)
+            })
+        println("treeAggregate time="+(currentTime-time2)/1000.0)
 
-//                val synCollect =
-//                synRDD.reduceByKey{(c1,c2)=>
-//                  val sm0 = new Array[Float](c1.length)
-//                  for (i <- 0 until c1.length) // add 2 arrays
-//                    sm0(i) = c1(i) + c2(i)
-//                  sm0
-//                }.collect()
-
-
-//        val synCollect =
-//        synRDD.aggregateByKey(new Array[Float](mc.vectorSize))(
-//          seqOp = (c1: Array[Float], c2: Array[Float]) => {
-//            //println("treeagg seqOp: id=" + v._1 + " length=" + v._2.length)
-//            val sm0 = new Array[Float](c1.length)
-//            for (i <- 0 until c1.length) // add 2 arrays
-//              sm0(i) = c1(i) + c2(i)
-//            sm0
-//          },
-//          // aggregate between RDDs
-//          combOp = (c1: Array[Float], c2: Array[Float]) => {
-//            //println("treeagg seqOp: id=" + v._1 + " length=" + v._2.length)
-//            val sm0 = new Array[Float](c1.length)
-//            for (i <- 0 until c1.length) // add 2 arrays
-//              sm0(i) = c1(i) + c2(i)
-//            sm0
-//          }
-//        ).collect()
-//
-//        println(synCollect.size)
-//        var (syn0Avg, syn1Avg): (Array[Float], Array[Float]) = (synCollect(1)._2,synCollect(0)._2)
-//        if (synCollect(0)._1==0) {
-//          syn0Avg = synCollect(0)._2
-//          syn1Avg = synCollect(1)._2
-//        }
-
-                val (syn0Avg, syn1Avg): (Array[Float], Array[Float]) =
-                  synRDD.aggregate(new Array[Float](0), new Array[Float](0))(
-                    // aggregate within RDD. c: aggregator, v: RDD-element
-                    seqOp = (c: (Array[Float], Array[Float]), v: (Int, Array[Float])) => {
-                      //println("treeagg seqOp: id=" + v._1 + " length=" + v._2.length)
-                      v._1 match {
-                        case 0 =>
-                          require(c._1.length == 0, "NOT c._1.length==0")
-                          (v._2, c._2)
-                        case 1 =>
-                          require(c._2.length == 0, "NOT c._2.length==0")
-                          (c._1, v._2)
-                      }
-                    },
-                    // aggregate between RDDs
-                    combOp = (c1: (Array[Float], Array[Float]), c2: (Array[Float], Array[Float])) => {
-                      //println("treeagg combOp: numParam=" + c1._1.length)
-                      require(c1._1.length == c2._1.length, "NOT c1._1.length==c2._1.length"+" "+c1._1.length+" "+c2._1.length)
-                      require(c1._2.length == c2._2.length, "NOT c1._2.length==c2._2.length"+" "+c1._2.length+" "+c2._2.length)
-                      val sm0 = new Array[Float](c1._1.length)
-                      for (i <- 0 until c1._1.length) // add 2 arrays
-                        sm0(i) = c1._1(i) + c2._1(i)
-                      val sm1 = new Array[Float](c1._1.length)
-                      for (i <- 0 until c1._2.length) // add 2 arrays
-                        sm1(i) = c1._2(i) + c2._2(i)
-                      (sm0, sm1)
-                    })
-
-
-
-//        val (syn0Avg, syn1Avg): (Array[Float], Array[Float]) =
-//          synRDD.treeAggregate(new Array[Float](0), new Array[Float](0))(
-//            // aggregate within RDD. c: aggregator, v: RDD-element
-//            seqOp = (c: (Array[Float], Array[Float]), v: (Int, Array[Float])) => {
-//              //println("treeagg seqOp: id=" + v._1 + " length=" + v._2.length)
-//              v._1 match {
-//                case 0 =>
-//                  require(c._1.length == 0, "NOT c._1.length==0")
-//                  (v._2, c._2)
-//                case 1 =>
-//                  require(c._2.length == 0, "NOT c._2.length==0")
-//                  (c._1, v._2)
-//              }
-//            },
-//            // aggregate between RDDs
-//            combOp = (c1: (Array[Float], Array[Float]), c2: (Array[Float], Array[Float])) => {
-//              //println("treeagg combOp: numParam=" + c1._1.length)
-//              require(c1._1.length == c2._1.length, "NOT c1._1.length==c2._1.length")
-//              require(c1._2.length == c2._2.length, "NOT c1._2.length==c2._2.length")
-//              val sm0 = new Array[Float](c1._1.length)
-//              for (i <- 0 until c1._1.length) // add 2 arrays
-//                sm0(i) = c1._1(i) + c2._1(i)
-//              val sm1 = new Array[Float](c1._1.length)
-//              for (i <- 0 until c1._2.length) // add 2 arrays
-//                sm1(i) = c1._2(i) + c2._2(i)
-//              (sm0, sm1)
-//            })
         val debug = false // check if first parameter was correctly aggregated
         if (debug) {
           val sRDD = synRDD.map(x => (x._1, x._2(0))).collect
