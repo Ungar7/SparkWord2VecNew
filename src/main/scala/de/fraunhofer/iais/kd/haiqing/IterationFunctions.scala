@@ -39,7 +39,7 @@ import de.fraunhofer.iais.kd.util.AliasMethod
   */
 class ModelConst(val window: Int, val vectorSize: Int, val maxNumSenses: Int,
                  val numNegative: Int, val learningRate: Float, val ENCODE: Int,
-                 val stepSize: Int, val oneSense: Boolean, val softMax: Boolean,
+                 val gamma: Float, val oneSense: Boolean, val softMax: Boolean,
                  val modelPathOneSense: String, val modelPathMultiSense: String, val modelSaveIter: Int,
                  val modelValidateIter: Int, val maxEmbNorm: Float, val senseProbThresh: Float, val printLv: Int,
                  val weightDecay: Float, val syn1OneSense: Boolean)

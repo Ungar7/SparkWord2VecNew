@@ -88,11 +88,11 @@ class SenseAssignment(val inputFile: String,
   //private var sc: SparkContext = null
 
   def setModelConst(numNegative: Int, window: Int, vectorSize: Int, learningRate: Float, ENCODE: Int,
-                    stepSize: Int, oneSense: Boolean, softMax: Boolean, modelPathOneSense: String,
+                    gamma: Float, oneSense: Boolean, softMax: Boolean, modelPathOneSense: String,
                     modelPathMultiSense: String, modelSaveIter: Int, modelValidateIter: Int, maxEmbNorm: Float,
                     senseProbThresh: Float, printLv: Int, weightDecay: Float,syn1OneSense:Boolean): Unit = {
     require(mc == null, "NOT mc==null")
-    mc = new ModelConst(window, vectorSize, count2numSenses.length + 1, numNegative, learningRate, ENCODE, stepSize,
+    mc = new ModelConst(window, vectorSize, count2numSenses.length + 1, numNegative, learningRate, ENCODE, gamma,
       oneSense, softMax, modelPathOneSense, modelPathMultiSense, modelSaveIter, modelValidateIter, maxEmbNorm,
       senseProbThresh, printLv, weightDecay,syn1OneSense)
   }
@@ -323,7 +323,8 @@ class SenseAssignment(val inputFile: String,
     for (i <- countFreq.length - 2 to 0 by -1)
       accFreq(i) = countFreq(i)._2 + accFreq(i + 1)
 
-    val diff = accFreq(0) / 400;
+    //val diff = accFreq(0) / 400;
+    val diff = 100
     var acc = 0
     for (i <- 0 until countFreq.length) {
       acc += countFreq(i)._2
@@ -680,7 +681,7 @@ class SenseAssignment(val inputFile: String,
     }
 
     val str = if (mc.oneSense) mc.modelPathOneSense else mc.modelPathMultiSense
-    val outputPath = str+"/"+Calendar.getInstance().getTime.toString.map(x=>if(x!=' '&&x!=':')x else '-').substring(4,19)+"-Para:"+numRDDs+","+numEpoch+","+minCount+","+mc.numNegative+","+mc.window+","+mc.vectorSize+","+freqThreshStr+","+mc.learningRate+","+mc.stepSize+","+local+","+trainingSet.getNumPartitions
+    val outputPath = str+"/"+Calendar.getInstance().getTime.toString.map(x=>if(x!=' '&&x!=':')x else '-').substring(4,19)+"-Para:"+numRDDs+","+numEpoch+","+minCount+","+mc.numNegative+","+mc.window+","+mc.vectorSize+","+freqThreshStr+","+mc.learningRate+","+mc.gamma+","+local+","+trainingSet.getNumPartitions
     val folderPath: Path = Paths.get(outputPath)
     if (!Files.exists(folderPath))
       Files.createDirectory(folderPath)
@@ -699,6 +700,8 @@ class SenseAssignment(val inputFile: String,
 
     val storageLevel = StorageLevel.DISK_ONLY // write rdds to disk
     var currentLearnRate = -1.0
+
+    var alpha = mc.learningRate
 
     /*----------------------------------------------------------------------- */
     /*            iteration over RDDs                                         */
@@ -787,6 +790,7 @@ class SenseAssignment(val inputFile: String,
         val lossNumTrainAcc = scTrn2.accumulator(0l)
         var numPartitions = trainSet(indexRDD).partitions.size
         val seedTrainBc = scTrn2.broadcast(seed + it * numPartitions + 178829)
+        val alphaBc = scTrn2.broadcast(alpha)
 
         //println("iteration = " + it + "   indexRDD = " + indexRDD + " learn syn0 and syn1 ...")
         //------------------- learn syn0 and syn1 -------------------------
@@ -798,16 +802,17 @@ class SenseAssignment(val inputFile: String,
           var startTime = currentTime
           var lastWordCount = 0
           var wordCount = 0
-          var alpha = F.m.learningRate * (1 - totalWordCount * 1.0f / totalTrainWords)
-          if (alpha < F.m.learningRate * 0.0001f) alpha = F.m.learningRate * 0.0001f
+          val alpha = alphaBc.value
+//          var alpha = F.m.learningRate * (1 - totalWordCount * 1.0f / totalTrainWords)
+//          if (alpha < F.m.learningRate * 0.0001f) alpha = F.m.learningRate * 0.0001f
 
           var loss = 0.0
           var lossNum = 0
           for (sentence <- iterator) {
-            if (wordCount - lastWordCount > F.m.stepSize) {
-              var alpha = F.m.learningRate * (1 - (totalWordCount * 1.0 + wordCount * numPartitions) / totalTrainWords)
-              if (alpha < F.m.learningRate * 0.0001f) alpha = F.m.learningRate * 0.0001f
-            }
+//            if (wordCount - lastWordCount > F.m.stepSize) {
+//              var alpha = F.m.learningRate * (1 - (totalWordCount * 1.0 + wordCount * numPartitions) / totalTrainWords)
+//              if (alpha < F.m.learningRate * 0.0001f) alpha = F.m.learningRate * 0.0001f
+//            }
             val sentenceNEG = F.m.generateSentenceNEG(sentence, F.rand)
             val (sentLoss, sentLossNum) = F.learnSentence(alpha.toFloat, sentence, sentenceNEG)
             loss += sentLoss
@@ -838,6 +843,10 @@ class SenseAssignment(val inputFile: String,
           //println("idx="+idx+" synIter.length="+synIter.length)
           synIter.toIterator
         }.cache()
+
+        alpha = alpha*mc.gamma
+        if (alpha < mc.learningRate*0.0001f)
+          alpha = mc.learningRate*0.0001f
 
         val time1 = currentTime
         val nn = synRDD.count()
@@ -933,7 +942,7 @@ class SenseAssignment(val inputFile: String,
       //adjust sense assignment and calculate loss for validation set
       //println("iteration = " + it + "   indexRDD = " + indexRDD + " adjust sense assignment and calculate loss for " +
       //  "validation set...")
-      if (it+1 == numIterations || it % mc.modelValidateIter == 0) {
+      if ((it+1) == numIterations || (it+1) % mc.modelValidateIter == 0) {
         /*----------------------------------------------------------------------- */
         /*            adjust senses of validation set and compute loss            */
         /*----------------------------------------------------------------------- */
@@ -996,7 +1005,7 @@ class SenseAssignment(val inputFile: String,
       //println("syn0(0)(0)(0)=" + syn0(0)(0)(0))
       //println("syn0Modify(0)(0)=" + syn0Modify(0)(0))
       //println("syn0Modify(0)(0)=" + syn0Modify(0)(0))
-      if (it+1 == numIterations || it > 0 && it % mc.modelSaveIter == 0) {
+      if ((it+1) == numIterations || (it+1) % mc.modelSaveIter == 0) {
         println(stIter + "saving model ...")
           if (mc.oneSense)
             writeToFile(outputPath)

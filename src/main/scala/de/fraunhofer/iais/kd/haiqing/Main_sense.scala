@@ -38,6 +38,8 @@ object Main_sense {
 
      // input file should contain lines of text, each line containing a sentence
     val input = sc.textFile(args(0), sc.defaultParallelism)
+    println("input.getNumPartitions="+input.getNumPartitions)
+    println("sc.defaultParallelism="+sc.defaultParallelism)
     val lines = input.take(2)
     println("---- read " + input.count() + " lines of text from file " + args(0)+ " ----")
     for (i <- 0 until lines.length)
@@ -46,7 +48,7 @@ object Main_sense {
     //val oneSense = (args.length == 12)
     val softMax = false // softMax or sigmoid
     val modelPathMultiSense = if (args.length < 13) "" else args(12)
-    val modelSaveIter = 20 // save the model after this number of iterations
+    val modelSaveIter = 10 // save the model after this number of iterations
     val validationRation = 0.1f // max. fraction of data to use for validation
     val modelValidateIter = 5 //  validate the model after this number of iterations
     val validationRatio = 0.1f // maximum fraction of data to use for validation
@@ -102,7 +104,7 @@ object Main_sense {
         args(6).toInt, // 50 embedding size
         args(8).toFloat, // 0.025 beginning learning rate
         ENCODE, // multiplier for word number, mu
-        args(9).toInt, // 10000 how many word words are processed before reducing learning rate
+        args(9).toFloat, // 10000 how many word words are processed before reducing learning rate
         oneSense, // indicator for using only 1 sense
         softMax, // indicator for sftMax or sigmoid activation
         args(11), //synPath path with stored model with 1 sense
@@ -140,7 +142,7 @@ object Main_sense {
         args(6).toInt, // 50 embedding size
         args(8).toFloat, // 0.025 beginning learning rate
         ENCODE, // multiplier for word number, mu
-        args(9).toInt, // 10000 how many word words are processed before reducing learning rate
+        args(9).toFloat, // 10000 how many word words are processed before reducing learning rate
         oneSense, // indicator for using only 1 sense
         softMax, // indicator for sftMax or sigmoid activation
         args(11), //synPath path with stored model with 1 sense
@@ -171,5 +173,5 @@ object Main_sense {
 //arg(6) vectorSize = 50
 //arg(7) count2numSenses = 20_60
 //arg(8) learnRate = 0.01
-//arg(9) stepSize = 10000
+//arg(9) gamma = 0.95
 //arg(10) local = true
