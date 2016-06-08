@@ -24,7 +24,7 @@ import de.fraunhofer.iais.kd.util.AliasMethod
   * @param numNegative
   * @param learningRate
   * @param ENCODE
-  * @param stepSize
+  * @param gamma
   * @param oneSense            use only one sense.
   * @param softMax             use softmax activation, else sigmoid
   * @param modelPathOneSense   directory to store one-sense model
