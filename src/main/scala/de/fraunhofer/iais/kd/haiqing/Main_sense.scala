@@ -48,7 +48,7 @@ object Main_sense {
     //val oneSense = (args.length == 12)
     val softMax = false // softMax or sigmoid
     val modelPathMultiSense = if (args.length < 13) "" else args(12)
-    val modelSaveIter = 10 // save the model after this number of iterations
+    val modelSaveIter = 5 // save the model after this number of iterations
     val validationRation = 0.1f // max. fraction of data to use for validation
     val modelValidateIter = 5 //  validate the model after this number of iterations
     val validationRatio = 0.1f // maximum fraction of data to use for validation
