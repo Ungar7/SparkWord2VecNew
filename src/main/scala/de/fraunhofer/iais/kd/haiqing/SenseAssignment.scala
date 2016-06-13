@@ -702,11 +702,14 @@ class SenseAssignment(val inputFile: String,
     var currentLearnRate = -1.0
 
     var alpha = mc.learningRate
+    var lastValiLoss = -1.0;
 
     /*----------------------------------------------------------------------- */
     /*            iteration over RDDs                                         */
     /*----------------------------------------------------------------------- */
-    for (it <- 0 until numIterations) {
+    var it = 0;
+    var flag = false;
+    while (it < numIterations && !flag) {
 
       val indexRDD = it % numRDDs
       val stIter = "epoch= " + (it / numRDDs) + "/" + numEpoch + " iRDD=" + indexRDD + "/" + this.numRDDs +
@@ -997,21 +1000,26 @@ class SenseAssignment(val inputFile: String,
         println(st)
         hist(histPos("valiLossPerPredict")) = valiLossPerPredict
         hist(histPos("valiNumAdjustPerSentence")) = valiNumAdjustPerSentence
+
+
+        if (lastValiLoss >=0 && valiLossPerPredict > lastValiLoss)
+          flag = true;
+        lastValiLoss = valiLossPerPredict;
+
+        if (!flag) {
+          println(stIter + "saving model ...")
+          if (mc.oneSense)
+            writeToFile(outputPath)
+          else
+            writeToFile(outputPath)
+        }
       }
-
-
 
       //println()
       //println("syn0(0)(0)(0)=" + syn0(0)(0)(0))
       //println("syn0Modify(0)(0)=" + syn0Modify(0)(0))
       //println("syn0Modify(0)(0)=" + syn0Modify(0)(0))
-      if ((it+1) == numIterations || (it+1) % mc.modelSaveIter == 0) {
-        println(stIter + "saving model ...")
-          if (mc.oneSense)
-            writeToFile(outputPath)
-          else
-            writeToFile(outputPath)
-      }
+
       historyWriter.write(hist.mkString(" ") + "\n")
       historyWriter.flush()
     }
