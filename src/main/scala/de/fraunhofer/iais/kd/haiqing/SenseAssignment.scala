@@ -77,7 +77,7 @@ class SenseAssignment(val inputFile: String,
   var vocab: Array[VocabWord] = null
   private var vocabHash = mutable.HashMap.empty[String, Int]
   //private var numberOfSensesPerWord: Array[Int] = null
-  private var totalWords = 0
+  private var totalWords = 0l
   //private var totalSentences = 0
   private var syn0: Array[Array[Array[Float]]] = null
   private var syn1: Array[Array[Array[Float]]] = null
@@ -669,8 +669,13 @@ class SenseAssignment(val inputFile: String,
     val rand = new Random(seed + 1773)
 
     var totalWordCount = 0 // running words
-    val totalTrainWords = totalWords * numEpoch *
-        (1 - validationRatio) // totalWords = number of running words in corpus
+    val totalTrainWords = totalWords * numEpoch * (1 - validationRatio) // totalWords = number of running words in corpus
+    println("----------------------")
+    println("totalWords="+totalWords)
+    println("numEpoch="+numEpoch)
+    println("validationRatio="+validationRatio)
+    println("totalTrainWords="+totalTrainWords)
+    println("----------------------")
     val numIterations = numEpoch * numRDDs
 
     val senseProbs = new Array[Array[Float]](mc.vocabSize) // for each word the probability of senses
@@ -699,7 +704,6 @@ class SenseAssignment(val inputFile: String,
     historyWriter.flush()
 
     val storageLevel = StorageLevel.DISK_ONLY // write rdds to disk
-    var currentLearnRate = -1.0
 
     var alpha = mc.learningRate
     var lastValiLoss = -1.0;
@@ -776,6 +780,8 @@ class SenseAssignment(val inputFile: String,
 
       }
 
+      println( "it="+it+"totalTrainWords="+totalTrainWords)
+
       val doTrain = true
       if (doTrain) {
 
@@ -832,11 +838,12 @@ class SenseAssignment(val inputFile: String,
             st += "/" + totalTrainWords + " wordsPerSec=" + wordPerSec
             st += " alpha=" + Ut.pp(alpha, "%10.6f")
             println(st)
+            println("----------------------------")
+            println("totalWordCount="+totalWordCount)
+            println("wordCount="+wordCount)
+            println("numPartitions="+numPartitions)
+            println("----------------------------")
           }
-
-          wordCountTrainAcc += wordCount
-          lossTrainAcc += loss
-          lossNumTrainAcc += lossNum
 
           val synIter = new ArrayBuffer[(Int, Array[Float])]()
           val s0: (Int, Array[Float]) = (0, F.m.stackSynIntoArray(F.syn0))
@@ -856,8 +863,6 @@ class SenseAssignment(val inputFile: String,
         println("count time="+(currentTime-time1)/1000.0)
 
 
-        currentLearnRate = mc.learningRate * (1 - (totalWordCount * 1.0) / totalTrainWords)
-        if (currentLearnRate < mc.learningRate * 0.0001f) currentLearnRate = mc.learningRate * 0.0001f
         if (mc.printLv > 1) {
           var st = stIter + "trainSet: lossPerPrediction=" + Ut.pp(lossTrainAcc.value / lossNumTrainAcc.value, "%10.6f")
           st += " numPrediction: " + lossNumTrainAcc.value
@@ -934,7 +939,7 @@ class SenseAssignment(val inputFile: String,
         syn0 = mc.unstack(syn0Avg, 0, numPartitions.toFloat)
         syn1 = mc.unstack(syn1Avg, 0, numPartitions.toFloat)
         val numLimit = mc.limitEmbeddingLength(syn0, mc.maxEmbNorm) + mc.limitEmbeddingLength(syn1, mc.maxEmbNorm)
-        stWgd += " numLimit=" + numLimit + " learnRate=" + Ut.pp(currentLearnRate, "%10.6f")
+        //stWgd += " numLimit=" + numLimit + " learnRate=" + Ut.pp(currentLearnRate, "%10.6f")
         val iterTime = (System.currentTimeMillis() - iterStart) / 1000
         println(stWgd + " iterSecs=" + Ut.pp(iterTime, "%10.1f"))
         totalWordCount += wordCountTrainAcc.value
@@ -1022,6 +1027,7 @@ class SenseAssignment(val inputFile: String,
 
       historyWriter.write(hist.mkString(" ") + "\n")
       historyWriter.flush()
+      it+=1;
     }
     historyWriter.close()
   }
