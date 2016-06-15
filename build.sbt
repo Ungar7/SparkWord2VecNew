@@ -1,7 +1,6 @@
 import _root_.sbtassembly.AssemblyPlugin.autoImport._
 import _root_.sbtassembly.PathList
-
-mainClass in assembly := Some("de.fraunhofer.iais.kd.haiqing.Main_sense")
+//import sbt._
 
 assemblyJarName in assembly := "SparkWord2Vec.jar" // name of generated jar
 
@@ -31,4 +30,9 @@ organization := "Fraunhofer IAIS"
 
 description := "Spark Word2Vec implementation with word senses"
 
-    
+
+//resolvers += Resolver.mavenLocal
+
+//resolvers += "Local Maven Repository" at "file:///home/hwang/.m2/repository"
+
+//libraryDependencies += "com.jujutsu.tsne" %% "tsne" % "1.0.1"
