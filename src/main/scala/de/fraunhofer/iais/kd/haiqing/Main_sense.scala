@@ -3,7 +3,6 @@ package de.fraunhofer.iais.kd.haiqing
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.{SparkConf, SparkContext}
 
-import scala.collection.mutable
 
 /**
   * Created by hwang on 09.02.16.

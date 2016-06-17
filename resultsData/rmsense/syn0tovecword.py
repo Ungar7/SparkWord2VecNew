@@ -1,7 +1,8 @@
-file = open("syn0.txt")
-file1 = open("vec.txt")
-file1 = open("vec.txt","w")
-file2 = open("word.txt","w")
+import sys
+
+file = open(sys.argv[1])
+file1 = open(sys.argv[2],"w")
+file2 = open(sys.argv[3],"w")
 for line in file.readlines():
 	d = line.split()
 	file2.write(d[0]+"_"+d[1]+"\n")

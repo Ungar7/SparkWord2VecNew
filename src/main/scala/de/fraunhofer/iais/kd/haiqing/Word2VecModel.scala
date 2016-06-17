@@ -6,6 +6,8 @@ import com.github.fommil.netlib.BLAS._
 import org.apache.spark.mllib.linalg.{Vectors, Vector}
 import com.github.fommil.netlib.BLAS.{getInstance => blas}
 
+import scala.collection.mutable
+
 /**
   * Created by hwang on 26.04.16.
   */
@@ -206,6 +208,57 @@ class Word2VecModel(
       println()
     }
   }
+
+
+  def saveNeighbors(searchTerms:Array[String], word2numSense:Map[String,Int], numSynonyms:Int, cosineDist:Boolean, pathFolder:String) {
+    //val file_vec = new PrintWriter(new File(pathFolder+"some_vec.txt"))
+    val file_word = new PrintWriter(new File(pathFolder+"/"+"some_word.txt"))
+    val hash = new mutable.HashSet[String]()
+
+    for (j <- 0 until searchTerms.length) {
+
+      val parts = searchTerms(j).split("_")
+      val wsArr = parts.length match {
+        case 1 => {
+          val nsense = word2numSense.getOrElse(searchTerms(j), -1)
+          require(nsense > 0, "word " + searchTerms(j) + " not in word2numSense")
+          (0 until nsense).map(isense => searchTerms(j) + "_" + isense).toArray
+        }
+        case 2 => Array(searchTerms(j))
+        case _ => throw new RuntimeException("wrong search entry " + searchTerms(j))
+      }
+
+      //val fileOneWord_vec = new PrintWriter(new File(pathFolder+wsArr(0).split("_")(0)+"_vec.txt"))
+      val fileOneWord_word = new PrintWriter(new File(pathFolder+"/"+wsArr(0).split("_")(0)+"_word.txt"))
+      val hashOneWord = new mutable.HashSet[String]()
+
+      println(pathFolder+"/"+wsArr(0).split("_")(0)+"_word.txt")
+
+      // find neighbors of the word-senses of a word
+      for (ws <- wsArr) {
+        val synonyms = findSynonyms(ws, numSynonyms,cosineDist)
+
+        for (synonym <- synonyms) {
+          hashOneWord.add(synonym._1)
+          hash.add(synonym._1)
+        }
+      }
+
+      val oneWord_words = hashOneWord.toList
+      for (word <- oneWord_words) {
+        fileOneWord_word.write(word+"\n")
+
+        //fileOneWord_vec.write()
+      }
+      fileOneWord_word.close()
+    }
+
+    val words = hash.toList
+    for (word <- words)
+      file_word.write(word+"\n")
+    file_word.close()
+  }
+
 }
 
 object TestSenseVectors {
@@ -229,6 +282,7 @@ object TestSenseVectors {
 
     val cosineDist = true
     model.getNeighbors(searchTerms, word2numSense, numSynonyms,cosineDist)
+
 
 //    val NEWsynonyms = model.findSynonyms(args(2), 20)
 //    //val synonyms = model.findSynonyms("day", 10)
