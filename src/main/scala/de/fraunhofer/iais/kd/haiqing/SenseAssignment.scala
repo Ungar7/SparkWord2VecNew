@@ -88,12 +88,12 @@ class SenseAssignment(val inputFile: String,
   //private var sc: SparkContext = null
 
   def setModelConst(numNegative: Int, window: Int, vectorSize: Int, learningRate: Float, ENCODE: Int,
-                    gamma: Float, oneSense: Boolean, softMax: Boolean, modelPathOneSense: String,
+                    gamma: Float, oneSense: Boolean, softMax: Boolean, evaluationWordPath: String, modelPathOneSense: String,
                     modelPathMultiSense: String, modelSaveIter: Int, modelValidateIter: Int, maxEmbNorm: Float,
                     senseProbThresh: Float, printLv: Int, weightDecay: Float,syn1OneSense:Boolean): Unit = {
     require(mc == null, "NOT mc==null")
     mc = new ModelConst(window, vectorSize, count2numSenses.length + 1, numNegative, learningRate, ENCODE, gamma,
-      oneSense, softMax, modelPathOneSense, modelPathMultiSense, modelSaveIter, modelValidateIter, maxEmbNorm,
+      oneSense, softMax, evaluationWordPath, modelPathOneSense, modelPathMultiSense, modelSaveIter, modelValidateIter, maxEmbNorm,
       senseProbThresh, printLv, weightDecay,syn1OneSense)
   }
 
@@ -334,8 +334,11 @@ class SenseAssignment(val inputFile: String,
       }
     }
 
+    val sc = input.context
+    val evaluationWords = sc.textFile(mc.evaluationWordPath).collect().toSet
+
     vocab = vocabRaw
-      .filter(x => x.cn >= minCount)
+      .filter(x => (x.cn >= minCount || evaluationWords.contains(x.word)))
       .collect() // this executes the
       .sortWith((a, b) => a.cn > b.cn)
     mc.vocabSize = vocab.length

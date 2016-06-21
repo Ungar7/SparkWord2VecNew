@@ -78,6 +78,7 @@ object SuiteTest {
             softMax, // indicator for softmax / sigmoid
             "",
             "",
+            "",
             5, // interval for model saving
             1, // interval for model validation
             maxEmbNorm, // maximum square length of embedding. If larger the vectors are scaled down
@@ -160,6 +161,7 @@ object SuiteTest {
       stepSize, // 10000 how many word words are processed before reducing learning rate
       oneSense,
       softMax, // indicator for one Sense
+      "",
       "",
       "",
       5, // interval for model saving

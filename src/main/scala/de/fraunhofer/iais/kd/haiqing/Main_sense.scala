@@ -58,11 +58,6 @@ object Main_sense {
     val printLv=3 // level for training output
     val weightDecay = 0.1f
     val syn1OneSense:Boolean = true // syn1 has only one sense
-    val evaluationWords = sc.textFile(args(11)).collect()
-    println(evaluationWords.length)
-    println(evaluationWords(0))
-    println(evaluationWords(1))
-
 
     // 2_5 -> number iterations one sense, number of iterations multisense
     // 0_R5 -> read current syn0 syn1 of multisense and do another 5 iterations
@@ -111,6 +106,7 @@ object Main_sense {
         args(9).toFloat, // 10000 how many word words are processed before reducing learning rate
         oneSense, // indicator for using only 1 sense
         softMax, // indicator for sftMax or sigmoid activation
+        args(11), //
         args(12), //synPath path with stored model with 1 sense
         modelPathMultiSense, //outputPath path to write multisense model
         modelSaveIter, // save the model after this number of iterations
@@ -149,6 +145,7 @@ object Main_sense {
         args(9).toFloat, // 10000 how many word words are processed before reducing learning rate
         oneSense, // indicator for using only 1 sense
         softMax, // indicator for sftMax or sigmoid activation
+        args(11), //
         args(12), //synPath path with stored model with 1 sense
         modelPathMultiSense, //outputPath path to write multisense model
         modelSaveIter, // save the model after this number of iterations
