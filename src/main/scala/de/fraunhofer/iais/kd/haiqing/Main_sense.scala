@@ -25,7 +25,7 @@ object Main_sense {
     val sc = new SparkContext(conf)
     println("sc.defaultParallelism=" + sc.defaultParallelism + "   " + sc.master)
     val argNam = Array("inpFile", "numRdd", "numEpoch", "minCount", "numNegative", "windowSize", "vectorSize",
-      "count2numSenses", "learnRate", "stepSize", "local", "1-senseModelPath", "multi-senseModelPath")
+      "count2numSenses", "learnRate", "stepSize", "local", "evaluationWordPath", "1-senseModelPath", "multi-senseModelPath")
     for (i <- 0 until args.length)
       println("arg(" + i + ") " + argNam(i) + " = " + args(i))
 
@@ -46,7 +46,7 @@ object Main_sense {
     val ENCODE = 100
     //val oneSense = (args.length == 12)
     val softMax = false // softMax or sigmoid
-    val modelPathMultiSense = if (args.length < 13) "" else args(12)
+    val modelPathMultiSense = if (args.length < 14) "" else args(13)
     val modelSaveIter = 5 // save the model after this number of iterations
     val validationRation = 0.1f // max. fraction of data to use for validation
     val modelValidateIter = 5 //  validate the model after this number of iterations
@@ -58,6 +58,11 @@ object Main_sense {
     val printLv=3 // level for training output
     val weightDecay = 0.1f
     val syn1OneSense:Boolean = true // syn1 has only one sense
+    val evaluationWords = sc.textFile(args(11)).collect()
+    println(evaluationWords.length)
+    println(evaluationWords(0))
+    println(evaluationWords(1))
+
 
     // 2_5 -> number iterations one sense, number of iterations multisense
     // 0_R5 -> read current syn0 syn1 of multisense and do another 5 iterations
@@ -106,7 +111,7 @@ object Main_sense {
         args(9).toFloat, // 10000 how many word words are processed before reducing learning rate
         oneSense, // indicator for using only 1 sense
         softMax, // indicator for sftMax or sigmoid activation
-        args(11), //synPath path with stored model with 1 sense
+        args(12), //synPath path with stored model with 1 sense
         modelPathMultiSense, //outputPath path to write multisense model
         modelSaveIter, // save the model after this number of iterations
         modelValidateIter, // validate the model after this number of iterations
@@ -144,7 +149,7 @@ object Main_sense {
         args(9).toFloat, // 10000 how many word words are processed before reducing learning rate
         oneSense, // indicator for using only 1 sense
         softMax, // indicator for sftMax or sigmoid activation
-        args(11), //synPath path with stored model with 1 sense
+        args(12), //synPath path with stored model with 1 sense
         modelPathMultiSense, //outputPath path to write multisense model
         modelSaveIter, // save the model after this number of iterations
         modelValidateIter, // validate the model after this number of iterations
@@ -153,7 +158,6 @@ object Main_sense {
         printLv, // level for training output
         weightDecay, // weight reduction
         syn1OneSense) // syn1 has only one sense
-
       senseModel.trainWrapper(
         input //outputPath path to write multisense model
       )

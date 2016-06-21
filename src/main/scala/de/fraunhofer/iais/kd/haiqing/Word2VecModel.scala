@@ -209,7 +209,6 @@ class Word2VecModel(
     }
   }
 
-
   def saveNeighbors(searchTerms:Array[String], word2numSense:Map[String,Int], numSynonyms:Int, cosineDist:Boolean, pathFolder:String) {
     //val file_vec = new PrintWriter(new File(pathFolder+"some_vec.txt"))
     val file_word = new PrintWriter(new File(pathFolder+"/"+"some_word.txt"))

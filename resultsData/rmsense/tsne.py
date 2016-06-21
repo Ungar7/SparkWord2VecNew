@@ -17,10 +17,10 @@ listWords4 = ['apple']
 listWords5 = ['good']
 listWords6 = ['google']
  
-data = np.loadtxt("some"+"_vec.txt")
+data = np.loadtxt("sample"+"_vec.txt")
 #data = np.random.random((1000,50))
  
-label=map(lambda s:s.strip(), codecs.open("some"+"_word.txt",encoding="utf-8").readlines())
+label=map(lambda s:s.strip(), codecs.open("sample"+"_word.txt",encoding="utf-8").readlines())
  
 model = TSNE(n_components=2, random_state=0)
 x, y = model.fit_transform(data).T
@@ -58,7 +58,7 @@ for i in range(0, len(x)):
                               ax.text(x[i], y[i], label[i], color='magenta', fontsize=14)                                                               
               
 for i in range(0, len(x)):
-               if (label[i].split("_")[0] not in listWords and np.random.rand() < 0.2):
+               if (label[i].split("_")[0] not in listWords and np.random.rand() < 0.01):
                               ax.text(x[i], y[i], label[i].split("_")[0], alpha=0.8, color='black', fontsize=14)
  
  
